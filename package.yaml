@@ -14,12 +14,7 @@ app:
     profile: default
     network:
       -
-        interface-name: mvsw
-        ports:
-          tcp:
-            - 8000
-      -
-        interface-name: veth0_400
+        interface-name: eth0
         ports:
           tcp:
             - 8000

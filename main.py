@@ -21,7 +21,7 @@ import threading
 import logging
 import requests
 import os
-import datetime
+from dotenv import load_dotenv
 
 from wsgiref.simple_server import make_server
 
@@ -39,6 +39,8 @@ signal.signal(signal.SIGINT, _sleep_handler)
 PORT = 8000
 HOST = "0.0.0.0"
 
+load_dotenv()
+
 class SerialThread(threading.Thread):
     def __init__(self):
         super(SerialThread, self).__init__()
@@ -50,8 +52,8 @@ class SerialThread(threading.Thread):
         self.stop_event.set()
 
     def run(self):
-        INTERVAL = 5 # Interval between publishing in seconds
-        URL = "http://10.11.45.6:8088/system/webdev/OPCServer/gps.json" # URL to post GPS data to
+        INTERVAL = 10 # Interval between publishing in seconds
+        URL = "https://www.fleeteyes.com/vehicle_update/cad_interface" # URL to post GPS data to
 
         # Set up serial device
         serial_dev = os.getenv("gps1")
@@ -80,14 +82,9 @@ class SerialThread(threading.Thread):
             if self.stop_event.is_set():
                 break
             quality = None
-            no_sattelites = None
-            hdop = None
-            old_entry = {
-                "lat" : "",
-                "lon" : ""
-            }
+            altitude = None
+            
             while sdev.inWaiting() > 0:
-                time_since = 31
                 sensVal = sdev.readline()
                 sensVal = sensVal.decode().split(",")
                 format = sensVal[0][1:]
@@ -95,43 +92,38 @@ class SerialThread(threading.Thread):
                 # NMEA data formats: https://anavs.com/knowledgebase/nmea-format/
                 if format == "GPGGA":
                     quality = sensVal[6]
-                    no_sattelites = sensVal[7]
-                    hdop = sensVal[8]
+                    altitude = sensVal[9]
                 elif format == "GPRMC" and sensVal[2] == "A" and quality is not None:
-                    entry = {
-                        "timestamp" : datetime.datetime.now().strftime("%d/%m/%y %H:%M:%SUTC"),
-                        "identity" : os.environ["CAF_SYSTEM_NAME"],
-                        "lat" : ("" if sensVal[4]=="N" else "-") + sensVal[3][:2] + "." + sensVal[3][2:4] + sensVal[3][5:],
-                        "lon" : ("" if sensVal[6]=="E" else "-") + sensVal[5][:2] + "." + sensVal[5][2:5] + sensVal[5][6:],
-                        "spd" : f"{float(sensVal[7])*1.852} km/h",
-                        "bearing" : f"{sensVal[8]} deg. true",
-                        "valid" : "yes",
-                        "sattelites" : no_sattelites,
-                        "quality" : quality,
-                        "hdop" : hdop
-                    }
+                    payload = f"""
+                    <?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>
+                    <data>
+                        <company>
+                            <id>{os.environ['FE_COMPANY_ID']}</id>
+                            <username>{os.environ['FE_USERNAME']}</username>
+                            <password>{os.environ['FE_PASSWORD']}</password>
+                        </company>
+                        <vehicles>
+                            <vehicle>
+                                <id>{os.environ["CAF_SYSTEM_NAME"]}</id>
+                                <name>{os.environ["CAF_SYSTEM_NAME"]}</name>
+                                <status>Available</status>
+                                <incidentid></incidentid>
+                                <crew></crew>
+                                <latitude>{("" if sensVal[4]=="N" else "-") + sensVal[3][:2] + "." + sensVal[3][2:4] + sensVal[3][5:]}</latitude>
+                                <longitude>{("" if sensVal[6]=="E" else "-") + sensVal[5][:2] + "." + sensVal[5][2:5] + sensVal[5][6:]}</longitude>
+                                <speed>{float(sensVal[7])}</speed>
+                                <altitude>{altitude}</altitude>
+                                <heading>{sensVal[8]}</heading>
+                            </vehicle>
+                        </vehicles>
+                        <incidents>
+                        </incidents>
+                    </data>
+                    """
                     
-                    if need_to_update(time_since, old_entry, entry):
-                        time_since = 0
-
-                        # Log to application files
-                        logger.info(json.dumps(entry))
-
-                        # Send to REST endpoint
-                        requests.post(URL, headers={"Content-Type" : "application/json"}, json=entry)
-
-                        old_entry = entry
-                    else:
-                        time_since += INTERVAL
-
                     time.sleep(INTERVAL)
+                    requests.post(URL, headers={"Content-Type" : "application/xml"}, data=payload)
         sdev.close()
-
-# Check if sending update is necessary
-def need_to_update(time_since, old_entry, new_entry):
-    if old_entry['lat'] != new_entry['lat'] or old_entry['lon'] != new_entry['lon'] or time_since > 30:
-        return True
-    return False
 
 def simple_app(environ, start_response):
     status = '200 OK'

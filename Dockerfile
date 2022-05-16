@@ -2,6 +2,7 @@ FROM arm64v8/python:alpine
 
 RUN pip3 install pyserial
 RUN pip3 install requests
+RUN pip3 install python-dotenv
 
 EXPOSE 8000
 

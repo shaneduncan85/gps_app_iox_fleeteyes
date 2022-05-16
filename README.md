@@ -1,6 +1,6 @@
-# GVE DevNet IOx GPS Publishing App - IR1800
+# GVE DevNet IOx GPS Publishing App - IR1800 to FleetEyes
 
-This prototype hold an IOx app for publishing GPS data as read from an Cisco Catalyst IR1800 to either application log files, or a user-defined REST endpoint.
+This prototype hold an IOx app for publishing GPS data as read from an Cisco Catalyst IR1800 to a FleetEyes tracking platform.
 
 ## Overview
 
@@ -23,7 +23,10 @@ $ git clone https://github.com/Stienvdh/gve_devnet_iox_gps_app_ir1800.git
 $ cd gve_devnet_iox_gps_app_ir1800
 ```
 
-2. In `main.py`, set your REST endpoint on line 54. 
+2. In `.env`, set your FleetEyes credentials:
+- `FE_COMPANY_ID`: Your company's FleetEyes ID, as found in the FleetEyes dashboard
+- `FE_USERNAME`: The username for your FleetEyes account
+- `FE_PASSWORD`: The password for your FleetEyes account
 
 3. Build the Docker container
 
@@ -69,13 +72,7 @@ $ ioxclient docker package ioxdockergps .
 
 ![](images/step6.png)
 
-- In the log files for your application, download the `gps_app_data.log` file to consult your app's output.
-
-![](images/step7.png)
-
-- Verify the application's output to hold GPS data
-
-![](images/step8.png)
+- Verify the application's is streaming to FleetEyes. 
 
 ### LICENSE
 
